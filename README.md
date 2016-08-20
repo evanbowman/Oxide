@@ -1,3 +1,5 @@
 # ox
-Terminal pattern matching tool written in Rust
+A simple, fast command line regex tool written in Rust.
+
+## Introduction
 
