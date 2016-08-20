@@ -87,50 +87,59 @@ fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf, mute
     }
     let _ = mutex.lock().unwrap();
     let fname = path.file_name().unwrap().to_str().unwrap();
-    let error_fmt = Style::new().bold().fg(Colour::Red);
     println!("[{}]", Style::new().bold().paint(fname));
     for matched_pattern_idxs in matches {
         print!("\t");
-        let line_start_idx = seek_line_start(bytes, matched_pattern_idxs.0);
-        if line_start_idx != matched_pattern_idxs.0 {
-            let leading_slice = &bytes[line_start_idx..(matched_pattern_idxs.0)];
-            let ret = str::from_utf8(&leading_slice);
-            match ret {
-                Ok(leading_string) => print!("{}", leading_string),
-                _ => {
-                    println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
-                    continue;
-                }
-            }
-        }
-        {
-            let matched_pattern_slice = &bytes[matched_pattern_idxs.0..matched_pattern_idxs.1];
-            let ret = str::from_utf8(&matched_pattern_slice);
-            match ret {
-                Ok(matched_string) => {
-                    print!("{}", Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
-                }
-                _ => {
-                    println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
-                    continue;
-                }
-            }
-        }
-        let line_end_idx = seek_line_end(bytes, matched_pattern_idxs.1);
-        if line_end_idx != matched_pattern_idxs.1 {
-            let trailing_slice = &bytes[(matched_pattern_idxs.1)..line_end_idx];
-            let ret = str::from_utf8(&trailing_slice);
-            match ret {
-                Ok(trailing_string) => print!("{}", trailing_string),
-                _ => {
-                    println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
-                    continue;
-                }
-            }
-        }
+        print_leading_context(bytes, matched_pattern_idxs);
+        print_match(bytes, matched_pattern_idxs);
+        print_trailing_context(bytes, matched_pattern_idxs);
         print!("\n");
     }
     print!("\n\n");
+}
+
+fn print_match(bytes: &[u8], matched_pattern_idxs: (usize, usize)) {
+    let matched_pattern_slice = &bytes[matched_pattern_idxs.0..matched_pattern_idxs.1];
+    let ret = str::from_utf8(&matched_pattern_slice);
+    match ret {
+        Ok(matched_string) => {
+            print!("{}", Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
+        }
+        _ => {
+            let error_fmt = Style::new().bold().fg(Colour::Red);
+            println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
+        }
+    }
+}
+
+fn print_leading_context(bytes: &[u8], matched_pattern_idxs: (usize, usize)) {
+    let line_start_idx = seek_line_start(bytes, matched_pattern_idxs.0);
+    if line_start_idx != matched_pattern_idxs.0 {
+        let leading_slice = &bytes[line_start_idx..(matched_pattern_idxs.0)];
+        let ret = str::from_utf8(&leading_slice);
+        match ret {
+            Ok(leading_string) => print!("{}", leading_string),
+            _ => {
+                let error_fmt = Style::new().bold().fg(Colour::Red);
+                println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
+            }
+        }
+    }
+}
+
+fn print_trailing_context(bytes: &[u8], matched_pattern_idxs: (usize, usize)) {
+    let line_end_idx = seek_line_end(bytes, matched_pattern_idxs.1);
+    if line_end_idx != matched_pattern_idxs.1 {
+        let trailing_slice = &bytes[(matched_pattern_idxs.1)..line_end_idx];
+        let ret = str::from_utf8(&trailing_slice);
+        match ret {
+            Ok(trailing_string) => print!("{}", trailing_string),
+            _ => {
+                let error_fmt = Style::new().bold().fg(Colour::Red);
+                println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
+            }
+        }
+    }
 }
 
 fn seek_line_start(bytes: &[u8], position: usize) -> usize {
