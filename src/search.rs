@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::thread;
 use self::memmap::{Mmap, Protection};
 use self::regex::bytes::Regex;
+use std::path::PathBuf;
 
 struct Range {
     begin: usize,
@@ -58,7 +59,7 @@ fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: Range) {
                 match res {
                     Ok(file_mmap) => {
                         let bytes: &[u8] = unsafe { file_mmap.as_slice() };
-                        search_mmap(bytes, &regex);
+                        search_mmap(bytes, &regex, entry.path());
                     },
                     Err(_) => {
                         // TODO: don't print errors for mmaping empty files
@@ -71,8 +72,13 @@ fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: Range) {
     }
 }
 
-fn search_mmap(bytes: &[u8], regex: &Regex) {
+fn search_mmap(bytes: &[u8], regex: &Regex, path: PathBuf) {
     for pos in regex.find_iter(bytes) {
         println!("{:?}", pos);
+        // TODO: Instead push them all to a vector...
+        // only print when finished with file...
+        // lock mutex around printing.
+        // Oh yeah also get the full line that match occurs on,
+        // and print in color.
     }
 }
