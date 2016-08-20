@@ -2,19 +2,16 @@ extern crate regex;
 extern crate num_cpus;
 extern crate memmap;
 extern crate time;
+extern crate ansi_term;
 
 use std::fs::DirEntry;
-use std::sync::Mutex;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use self::memmap::{Mmap, Protection};
+use self::ansi_term::{Style, Colour};
 use self::regex::bytes::Regex;
 use std::path::PathBuf;
-
-struct Range {
-    begin: usize,
-    end: usize,
-}
+use std::str;
 
 pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
     let num_entries = entries.len();
@@ -23,16 +20,16 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
     let shared_pattern = Arc::new(pattern);
     let mut threads = Vec::new();
     let start_time = time::precise_time_ns();
+    let mutex = Arc::new(Mutex::new(false));
     for idx in 0..num_cores {
         let child_entries = shared_entries.clone();
         let child_pattern = shared_pattern.clone();
+        let child_mutex = mutex.clone();
         let block_size = num_entries / num_cores;
-        let range = Range {
-            begin: idx * block_size,
-            end: (idx + 1) * block_size - 1
-        }; // TODO: Urgent: fix ranges! Corner case: less files than threads!!
+        let range = (idx * block_size, (idx + 1) * block_size - 1);
+        // TODO: Urgent: fix ranges! Corner case: less files than threads!!
         threads.push(thread::spawn(move || {
-            run_ranged_search(&child_pattern, &child_entries, range);
+            run_ranged_search(&child_pattern, &child_entries, range, &child_mutex);
         }));
     }
     for thrd in threads {
@@ -48,18 +45,19 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
     println!("[Completed search in {0}ns using {1} threads]", elapsed, num_cores);
 }
 
-fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: Range) {
+fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: (usize, usize), mutex: &Mutex<bool>) {
     let ret = Regex::new(pattern);
     match ret {
         Err(_) => println!("Failed to construct regular expression."),
         Ok(regex) => {
-            for idx in range.begin..range.end {
+            for idx in range.0..range.1 {
                 let entry = &entries[idx];
                 let res = Mmap::open_path(entry.path(), Protection::Read);
                 match res {
                     Ok(file_mmap) => {
                         let bytes: &[u8] = unsafe { file_mmap.as_slice() };
-                        search_mmap(bytes, &regex, entry.path());
+                        let matches = search_mmap(bytes, &regex);
+                        print_results(bytes, matches, entry.path(), mutex);
                     },
                     Err(_) => {
                         // TODO: don't print errors for mmaping empty files
@@ -72,13 +70,25 @@ fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: Range) {
     }
 }
 
-fn search_mmap(bytes: &[u8], regex: &Regex, path: PathBuf) {
+fn search_mmap(bytes: &[u8], regex: &Regex) -> Vec<(usize, usize)> {
+    let mut matches = Vec::new();
     for pos in regex.find_iter(bytes) {
-        println!("{:?}", pos);
-        // TODO: Instead push them all to a vector...
-        // only print when finished with file...
-        // lock mutex around printing.
-        // Oh yeah also get the full line that match occurs on,
-        // and print in color.
+        matches.push(pos);
     }
+    return matches;
+}
+
+fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf, mutex: &Mutex<bool>) {
+    if matches.len() == 0 {
+        return;
+    }
+    let lock_grd = mutex.lock().unwrap();
+    let fname = path.file_name().unwrap().to_str().unwrap();
+    println!("{}", Style::new().bold().paint(fname));
+    for matched_pattern in matches {
+        let matched_pattern_slice = &bytes[matched_pattern.0..matched_pattern.1];
+        let matched_string = str::from_utf8(&matched_pattern_slice).unwrap();
+        println!("\t{}", Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
+    }
+    print!("\n");
 }

@@ -15,8 +15,8 @@ pub fn get_entries(root: &String, recur: bool) -> io::Result<Vec<DirEntry>> {
 fn check_extension(path: &Path) -> bool {
     match path.extension() {
         None => return false,
-        Some(path_ext) => {
-            // TODO: user blacklist...
+        Some(_) => {
+            // TODO: user blacklist...?
             return true;
         },
     }
