@@ -10,3 +10,9 @@ ox <pattern>
 ```
 
 In the future, the tool will eventually support command line options parsing and much of grep and ack's functionality.
+
+## Installation
+This project uses Cargo for building and resolving dependencies.
+```
+Cargo build --release
+```
