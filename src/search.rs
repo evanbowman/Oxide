@@ -6,29 +6,30 @@ use std::fs::DirEntry;
 use std::sync::Mutex;
 use std::sync::Arc;
 use std::thread;
-use self::memmap::Mmap;
+use self::memmap::{Mmap, Protection};
+use self::regex::bytes::Regex;
 
 struct Range {
     begin: usize,
     end: usize,
 }
 
-pub fn find_occurences(pattern: String, files: Vec<DirEntry>) {
-    let num_files = files.len();
+pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
+    let num_entries = entries.len();
     let num_cores = num_cpus::get();
-    let shared_fnames = Arc::new(files);
+    let shared_entries = Arc::new(entries);
     let shared_pattern = Arc::new(pattern);
     let mut threads = Vec::new();
     for idx in 0..num_cores {
-        let child_fnames = shared_fnames.clone();
+        let child_entries = shared_entries.clone();
         let child_pattern = shared_pattern.clone();
-        let block_size = num_files / num_cores;
+        let block_size = num_entries / num_cores;
         let range = Range {
             begin: idx * block_size,
             end: (idx + 1) * block_size - 1
-        }; // TODO: Urgent: fix ranges
+        }; // TODO: Urgent: fix ranges!
         threads.push(thread::spawn(move || {
-            run_search(&child_pattern, &child_fnames, range);
+            run_ranged_search(&child_pattern, &child_entries, range);
         }));
     }
     for thrd in threads {
@@ -42,9 +43,31 @@ pub fn find_occurences(pattern: String, files: Vec<DirEntry>) {
     }
 }
 
-fn run_search(pattern: & String, files: & Vec<DirEntry>, range: Range) {
-    println!("My range is {0} {1}", range.begin, range.end);
-    // 1. Map view of each file
-    // 2. Search files with regex
-    // 3. Print results while searching
+fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: Range) {
+    let ret = Regex::new(pattern);
+    match ret {
+        Err(_) => println!("Failed to construct regular expression."),
+        Ok(regex) => {
+            for idx in range.begin..range.end {
+                let entry = &entries[idx];
+                let res = Mmap::open_path(entry.path(), Protection::Read);
+                match res {
+                    Ok(file_mmap) => {
+                        let bytes: &[u8] = unsafe { file_mmap.as_slice() };
+                        search_mmap(bytes, &regex);
+                    },
+                    Err(_) => {
+                        println!("Error: Failed to mmap {:?}", entry.path());
+                        continue;
+                    },
+                }
+            }
+        },
+    }
+}
+
+fn search_mmap(bytes: &[u8], regex: &Regex) {
+    for pos in regex.find_iter(bytes) {
+        println!("{:?}", pos);
+    }
 }

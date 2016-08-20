@@ -2,7 +2,7 @@ use std::fs::{self, DirEntry};
 use std::path::Path;
 use std::io;
 
-pub fn get_entries(root: & String, recur: bool) -> io::Result<Vec<DirEntry>> {
+pub fn get_entries(root: &String, recur: bool) -> io::Result<Vec<DirEntry>> {
     let mut entries: Vec<DirEntry> = Vec::new();
     let path = Path::new(root);
     match recur {
@@ -12,7 +12,7 @@ pub fn get_entries(root: & String, recur: bool) -> io::Result<Vec<DirEntry>> {
     Ok(entries)
 }
 
-fn walk(dir: & Path, entries: &mut Vec<DirEntry>) -> io::Result<()> {
+fn walk(dir: &Path, entries: &mut Vec<DirEntry>) -> io::Result<()> {
     if dir.is_dir() {
         for entry in try!(fs::read_dir(dir)) {
             let entry = try!(entry);
@@ -27,7 +27,7 @@ fn walk(dir: & Path, entries: &mut Vec<DirEntry>) -> io::Result<()> {
     Ok(())
 }
 
-fn explore(dir: & Path, entries: &mut Vec<DirEntry>) -> io::Result<()> {
+fn explore(dir: &Path, entries: &mut Vec<DirEntry>) -> io::Result<()> {
     if dir.is_dir() {
         for entry in try!(fs::read_dir(dir)) {
             let entry = try!(entry);
