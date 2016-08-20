@@ -1,6 +1,7 @@
 extern crate getopts;
 
 use std::env;
+use getopts::Options;
 
 mod dir;
 mod search;
@@ -23,6 +24,6 @@ fn main() {
             }
         }
     } else {
-        // TODO: options parsing...
+        let mut opts = Options::new();
     }
 }

@@ -87,23 +87,46 @@ fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf, mute
     }
     let _ = mutex.lock().unwrap();
     let fname = path.file_name().unwrap().to_str().unwrap();
+    let error_fmt = Style::new().bold().fg(Colour::Red);
     println!("[{}]", Style::new().bold().paint(fname));
     for matched_pattern_idxs in matches {
         print!("\t");
         let line_start_idx = seek_line_start(bytes, matched_pattern_idxs.0);
         if line_start_idx != matched_pattern_idxs.0 {
             let leading_slice = &bytes[line_start_idx..(matched_pattern_idxs.0)];
-            let leading_string = str::from_utf8(&leading_slice).unwrap();
-            print!("{}", leading_string);
+            let ret = str::from_utf8(&leading_slice);
+            match ret {
+                Ok(leading_string) => print!("{}", leading_string),
+                _ => {
+                    println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
+                    continue;
+                }
+            }
         }
-        let matched_pattern_slice = &bytes[matched_pattern_idxs.0..matched_pattern_idxs.1];
-        let matched_string = str::from_utf8(&matched_pattern_slice).unwrap();
-        print!("{}", Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
+        {
+            let matched_pattern_slice = &bytes[matched_pattern_idxs.0..matched_pattern_idxs.1];
+            let ret = str::from_utf8(&matched_pattern_slice);
+            match ret {
+                Ok(matched_string) => {
+                    print!("{}", Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
+                }
+                _ => {
+                    println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
+                    continue;
+                }
+            }
+        }
         let line_end_idx = seek_line_end(bytes, matched_pattern_idxs.1);
         if line_end_idx != matched_pattern_idxs.1 {
             let trailing_slice = &bytes[(matched_pattern_idxs.1)..line_end_idx];
-            let trailing_string = str::from_utf8(&trailing_slice).unwrap();
-            print!("{}", trailing_string);
+            let ret = str::from_utf8(&trailing_slice);
+            match ret {
+                Ok(trailing_string) => print!("{}", trailing_string),
+                _ => {
+                    println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
+                    continue;
+                }
+            }
         }
         print!("\n");
     }
