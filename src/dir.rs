@@ -12,6 +12,16 @@ pub fn get_entries(root: &String, recur: bool) -> io::Result<Vec<DirEntry>> {
     Ok(entries)
 }
 
+fn check_extension(path: &Path) -> bool {
+    match path.extension() {
+        None => return false,
+        Some(path_ext) => {
+            // TODO: user blacklist...
+            return true;
+        },
+    }
+}
+
 fn walk(dir: &Path, entries: &mut Vec<DirEntry>) -> io::Result<()> {
     if dir.is_dir() {
         for entry in try!(fs::read_dir(dir)) {
@@ -20,7 +30,9 @@ fn walk(dir: &Path, entries: &mut Vec<DirEntry>) -> io::Result<()> {
             if path.is_dir() {
                 try!(walk(&path, entries));
             } else {
-                entries.push(entry);
+                if check_extension(&path) {
+                    entries.push(entry);
+                }
             }
         }
     }
@@ -33,7 +45,9 @@ fn explore(dir: &Path, entries: &mut Vec<DirEntry>) -> io::Result<()> {
             let entry = try!(entry);
             let path = entry.path();
             if !path.is_dir() {
-                entries.push(entry);
+                if check_extension(&path) {
+                    entries.push(entry);
+                }
             }
         }
     }

@@ -1,6 +1,7 @@
 extern crate regex;
 extern crate num_cpus;
 extern crate memmap;
+extern crate time;
 
 use std::fs::DirEntry;
 use std::sync::Mutex;
@@ -20,6 +21,7 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
     let shared_entries = Arc::new(entries);
     let shared_pattern = Arc::new(pattern);
     let mut threads = Vec::new();
+    let start_time = time::precise_time_ns();
     for idx in 0..num_cores {
         let child_entries = shared_entries.clone();
         let child_pattern = shared_pattern.clone();
@@ -27,7 +29,7 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
         let range = Range {
             begin: idx * block_size,
             end: (idx + 1) * block_size - 1
-        }; // TODO: Urgent: fix ranges!
+        }; // TODO: Urgent: fix ranges! Corner case: less files than threads!!
         threads.push(thread::spawn(move || {
             run_ranged_search(&child_pattern, &child_entries, range);
         }));
@@ -41,6 +43,8 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
             _ => {},
         }
     }
+    let elapsed = time::precise_time_ns() - start_time;
+    println!("[Completed search in {0}ns using {1} threads]", elapsed, num_cores);
 }
 
 fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: Range) {
@@ -57,6 +61,7 @@ fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: Range) {
                         search_mmap(bytes, &regex);
                     },
                     Err(_) => {
+                        // TODO: don't print errors for mmaping empty files
                         println!("Error: Failed to mmap {:?}", entry.path());
                         continue;
                     },
