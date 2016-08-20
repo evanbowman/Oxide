@@ -26,8 +26,11 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
         let child_pattern = shared_pattern.clone();
         let child_mutex = mutex.clone();
         let block_size = num_entries / num_cores;
-        let range = (idx * block_size, (idx + 1) * block_size - 1);
-        // TODO: Urgent: fix ranges! Corner case: less files than threads!!
+        let mut range = (idx * block_size, (idx + 1) * block_size - 1);
+        if idx == num_cores {
+            // This corrects for round-off error in integer division
+            range.1 = num_entries - 1;
+        }
         threads.push(thread::spawn(move || {
             run_ranged_search(&child_pattern, &child_entries, range, &child_mutex);
         }));
@@ -42,7 +45,7 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
         }
     }
     let elapsed = time::precise_time_ns() - start_time;
-    println!("[Completed search in {0}ns using {1} threads]", elapsed, num_cores);
+    println!("[Completed search in {0} ns using {1} threads]", elapsed, num_cores);
 }
 
 fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: (usize, usize), mutex: &Mutex<bool>) {
@@ -86,8 +89,10 @@ fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf, mute
     let fname = path.file_name().unwrap().to_str().unwrap();
     println!("{}", Style::new().bold().paint(fname));
     for matched_pattern in matches {
+        // TODO: Slice from beginning index to the previous newline, or idx 0, make str
         let matched_pattern_slice = &bytes[matched_pattern.0..matched_pattern.1];
         let matched_string = str::from_utf8(&matched_pattern_slice).unwrap();
+        // TODO: Slice from ending index to the next newline or EOF
         println!("\t{}", Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
     }
     print!("\n");
