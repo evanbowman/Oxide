@@ -1,1 +1,8 @@
+# Compiled Rust Code
 target
+
+# Emacs temp files
+*~
+\#*\#
+*.#*
+
