@@ -1,0 +1,10 @@
+[package]
+name = "ox"
+version = "0.1.0"
+authors = ["evanbowman <ebowman@bu.edu>"]
+
+[dependencies]
+regex = "0.1"
+getopts = "0.2"
+memmap = "0.4.0"
+num_cpus = "1.0"
