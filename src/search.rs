@@ -45,7 +45,7 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
         }
     }
     let elapsed = time::precise_time_ns() - start_time;
-    println!("[Completed search in {0} ns using {1} threads]", elapsed, num_cores);
+    println!("[Completed search of {0} files in {1} ns using {2} threads]", num_entries, elapsed, num_cores);
 }
 
 fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: (usize, usize), mutex: &Mutex<bool>) {
@@ -85,15 +85,51 @@ fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf, mute
     if matches.len() == 0 {
         return;
     }
-    let lock_grd = mutex.lock().unwrap();
+    let _ = mutex.lock().unwrap();
     let fname = path.file_name().unwrap().to_str().unwrap();
-    println!("{}", Style::new().bold().paint(fname));
-    for matched_pattern in matches {
-        // TODO: Slice from beginning index to the previous newline, or idx 0, make str
-        let matched_pattern_slice = &bytes[matched_pattern.0..matched_pattern.1];
+    println!("[{}]", Style::new().bold().paint(fname));
+    for matched_pattern_idxs in matches {
+        print!("\t");
+        let line_start_idx = seek_line_start(bytes, matched_pattern_idxs.0);
+        if line_start_idx != matched_pattern_idxs.0 {
+            let leading_slice = &bytes[line_start_idx..(matched_pattern_idxs.0)];
+            let leading_string = str::from_utf8(&leading_slice).unwrap();
+            print!("{}", leading_string);
+        }
+        let matched_pattern_slice = &bytes[matched_pattern_idxs.0..matched_pattern_idxs.1];
         let matched_string = str::from_utf8(&matched_pattern_slice).unwrap();
-        // TODO: Slice from ending index to the next newline or EOF
-        println!("\t{}", Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
+        print!("{}", Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
+        let line_end_idx = seek_line_end(bytes, matched_pattern_idxs.1);
+        if line_end_idx != matched_pattern_idxs.1 {
+            let trailing_slice = &bytes[(matched_pattern_idxs.1)..line_end_idx];
+            let trailing_string = str::from_utf8(&trailing_slice).unwrap();
+            print!("{}", trailing_string);
+        }
+        print!("\n");
     }
-    print!("\n");
+    print!("\n\n");
+}
+
+fn seek_line_start(bytes: &[u8], position: usize) -> usize {
+    let mut idx = position;
+    while idx != 0 {
+        idx -= 1;
+        if bytes[idx] == '\n' as u8 {
+            idx += 1;
+            break;
+        }
+    }
+    return idx;
+}
+
+fn seek_line_end(bytes: &[u8], position: usize) -> usize {
+    let mut idx = position;
+    while idx != bytes.len() - 1 {
+        idx += 1;
+        if bytes[idx] == '\n' as u8 {
+            idx -= 1;
+            break;
+        }
+    }
+    return idx;
 }
