@@ -9,4 +9,4 @@ Using ox is very straightforward. To do a recursive multithreaded search on an e
 ox <pattern>
 ```
 
-In the future, the tool will support command line options parsing, and eventually support much of grep and ack's functionality.
+In the future, the tool will eventually support command line options parsing and much of grep and ack's functionality.
