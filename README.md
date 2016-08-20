@@ -1,10 +1,10 @@
 # Oxide
 
 ## Introduction
-Oxide (ox) is a simple command line pattern matching tool written in Rust. Like Ack, it processes files faster than grep by mmap'ing them, searches recursively by default, and features syntax highlighting. It forgoes Ack's whitelist design, instead searching all non-hidden files, making it more useful as a general purpose tool. ox also searches files in parallel by default, making it usually several times faster than Ack.
+Oxide (ox) is a simple pattern matching tool inspired by Ack and Grep. It achieves even faster searches by leveraging hardware concurrency, mmap'ing files rather than buffering them, and ignoring hidden files (like git repositories). I've found that my implemenatation is about three times faster than Ack and 90 times faster than grep for searching code bases. It's name is also 33% shorter than Ack, and 50% shorter than grep, and is therefore faster to type.
 
 ## Usage
-Using ox is very straightforward. To do a recursive multithreaded search on an entire file tree:
+Using ox is very straightforward. To do a multithreaded recursive search of a file tree:
 ```
 ox <pattern>
 ```
