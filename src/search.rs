@@ -87,7 +87,7 @@ fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf, mute
     }
     let _ = mutex.lock().unwrap();
     let fname = path.file_name().unwrap().to_str().unwrap();
-    println!("[{}]", Style::new().bold().fg(Colour::Green).paint(fname));
+    println!("[{}]", Style::new().bold().paint(fname));
     for matched_pattern_idxs in matches {
         print!("\t");
         print_leading_context(bytes, matched_pattern_idxs);
