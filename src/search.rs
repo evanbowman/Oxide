@@ -14,13 +14,13 @@ use std::path::PathBuf;
 use std::str;
 
 pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
+    let start_time = time::precise_time_ns();
     let num_entries = entries.len();
     let num_cores = num_cpus::get();
+    let mutex = Arc::new(Mutex::new(false));
     let shared_entries = Arc::new(entries);
     let shared_pattern = Arc::new(pattern);
     let mut threads = Vec::new();
-    let start_time = time::precise_time_ns();
-    let mutex = Arc::new(Mutex::new(false));
     for idx in 0..num_cores {
         let child_entries = shared_entries.clone();
         let child_pattern = shared_pattern.clone();
@@ -32,7 +32,7 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
             range.1 = num_entries - 1;
         }
         threads.push(thread::spawn(move || {
-            run_ranged_search(&child_pattern, &child_entries, range, &child_mutex);
+            ranged_search(&child_pattern, &child_entries, range, &child_mutex);
         }));
     }
     for thrd in threads {
@@ -40,15 +40,21 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
         match res {
             Err(e) => {
                 println!("Error: thread panicked with error code {:?}", e);
-            },
-            _ => {},
+            }
+            _ => {}
         }
     }
     let elapsed = time::precise_time_ns() - start_time;
-    println!("[Completed search of {0} files in {1} ns using {2} threads]", num_entries, elapsed, num_cores);
+    println!("[Completed search of {0} files in {1} ns using {2} threads]",
+             num_entries,
+             elapsed,
+             num_cores);
 }
 
-fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: (usize, usize), mutex: &Mutex<bool>) {
+fn ranged_search(pattern: &String,
+                 entries: &Vec<DirEntry>,
+                 range: (usize, usize),
+                 mutex: &Mutex<bool>) {
     let ret = Regex::new(pattern);
     match ret {
         Err(_) => println!("Failed to construct regular expression."),
@@ -61,15 +67,15 @@ fn run_ranged_search(pattern: &String, entries: &Vec<DirEntry>, range: (usize, u
                         let bytes: &[u8] = unsafe { file_mmap.as_slice() };
                         let matches = search_mmap(bytes, &regex);
                         print_results(bytes, matches, entry.path(), mutex);
-                    },
+                    }
                     Err(_) => {
                         // TODO: don't print errors for mmaping empty files
                         println!("Error: Failed to mmap {:?}", entry.path());
                         continue;
-                    },
+                    }
                 }
             }
-        },
+        }
     }
 }
 
@@ -81,11 +87,12 @@ fn search_mmap(bytes: &[u8], regex: &Regex) -> Vec<(usize, usize)> {
     return matches;
 }
 
+#[allow(unused_variables)] // lock_grd needs to exist for thread synchronization
 fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf, mutex: &Mutex<bool>) {
     if matches.len() == 0 {
         return;
     }
-    let _ = mutex.lock().unwrap();
+    let lock_grd = mutex.lock().unwrap();
     let fname = path.file_name().unwrap().to_str().unwrap();
     println!("[{}]", Style::new().bold().paint(fname));
     for matched_pattern_idxs in matches {
@@ -93,7 +100,7 @@ fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf, mute
         print_leading_context(bytes, matched_pattern_idxs);
         print_match(bytes, matched_pattern_idxs);
         print_trailing_context(bytes, matched_pattern_idxs);
-        print!("\n");
+        print!("{}", Style::default().paint("\n"));
     }
     print!("\n\n");
 }
@@ -103,11 +110,13 @@ fn print_match(bytes: &[u8], matched_pattern_idxs: (usize, usize)) {
     let ret = str::from_utf8(&matched_pattern_slice);
     match ret {
         Ok(matched_string) => {
-            print!("{}", Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
+            print!("{}",
+                   Style::new().on(Colour::Green).fg(Colour::Black).paint(matched_string));
         }
         _ => {
             let error_fmt = Style::new().bold().fg(Colour::Red);
-            println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
+            println!("{}",
+                     error_fmt.paint("Found non-utf8 character, skipping..."));
         }
     }
 }
@@ -121,7 +130,8 @@ fn print_leading_context(bytes: &[u8], matched_pattern_idxs: (usize, usize)) {
             Ok(leading_string) => print!("{}", leading_string),
             _ => {
                 let error_fmt = Style::new().bold().fg(Colour::Red);
-                println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
+                println!("{}",
+                         error_fmt.paint("Found non-utf8 character, skipping..."));
             }
         }
     }
@@ -136,7 +146,8 @@ fn print_trailing_context(bytes: &[u8], matched_pattern_idxs: (usize, usize)) {
             Ok(trailing_string) => print!("{}", trailing_string),
             _ => {
                 let error_fmt = Style::new().bold().fg(Colour::Red);
-                println!("{}", error_fmt.paint("Found non-utf8 character, skipping..."));
+                println!("{}",
+                         error_fmt.paint("Found non-utf8 character, skipping..."));
             }
         }
     }

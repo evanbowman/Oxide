@@ -1,17 +1,14 @@
-extern crate getopts;
-
 use std::env;
-use getopts::Options;
 
 mod dir;
 mod search;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    let root = String::from(".");
     if args.len() == 1 {
         println!("Usage: ox <pattern> <flags...>");
     } else if args.len() == 2 {
-        let root = String::from(".");
         let res = dir::get_entries(&root, true);
         match res {
             Ok(entries) => {
@@ -24,6 +21,6 @@ fn main() {
             }
         }
     } else {
-        let mut opts = Options::new();
+
     }
 }

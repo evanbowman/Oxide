@@ -18,7 +18,7 @@ fn check_extension(path: &Path) -> bool {
         Some(_) => {
             // TODO: user blacklist...?
             return true;
-        },
+        }
     }
 }
 
