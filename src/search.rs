@@ -34,7 +34,7 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
                 range.1 = num_entries - 1;
             }
             threads.push(thread::spawn(move || {
-                ranged_search(&child_pattern, &child_entries, range, &child_mutex);
+                ranged_search(&child_pattern, &child_entries, range, Some(&child_mutex));
             }));
             num_threads += 1;
         }
@@ -49,9 +49,7 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
         }
     } else {
         num_threads = 1;
-        let mutex = Mutex::new(false);
-        // TODO: Make the mutex an optional argument
-        ranged_search(&pattern, &entries, (0, entries.len()), &mutex);
+        ranged_search(&pattern, &entries, (0, entries.len()), None);
     }
     let elapsed = time::precise_time_ns() - start_time;
     println!("[Completed search of {0} files in {1} ns using {2} thread(s)]",
@@ -60,10 +58,11 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
              num_threads);
 }
 
+#[allow(unused_variables)] // lock_grd needs to exist for thread synchronization
 fn ranged_search(pattern: &String,
                  entries: &Vec<DirEntry>,
                  range: (usize, usize),
-                 mutex: &Mutex<bool>) {
+                 mutex: Option<&Mutex<bool>>) {
     let ret = Regex::new(pattern);
     match ret {
         Err(_) => println!("Failed to construct regular expression."),
@@ -75,7 +74,13 @@ fn ranged_search(pattern: &String,
                     Ok(file_mmap) => {
                         let bytes: &[u8] = unsafe { file_mmap.as_slice() };
                         let matches = search_mmap(bytes, &regex);
-                        print_results(bytes, matches, entry.path(), mutex);
+                        match mutex {
+                            Some(m) => {
+                                let lock_grd = m.lock().unwrap();
+                                print_results(bytes, matches, entry.path());
+                            }
+                            None => print_results(bytes, matches, entry.path()),
+                        }
                     }
                     Err(_) => {
                         // TODO: don't print errors for mmaping empty files
@@ -96,12 +101,10 @@ fn search_mmap(bytes: &[u8], regex: &Regex) -> Vec<(usize, usize)> {
     return matches;
 }
 
-#[allow(unused_variables)] // lock_grd needs to exist for thread synchronization
-fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf, mutex: &Mutex<bool>) {
+fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf) {
     if matches.len() == 0 {
         return;
     }
-    let lock_grd = mutex.lock().unwrap();
     let fname = path.file_name().unwrap().to_str().unwrap();
     println!("[{}]", Style::new().bold().paint(fname));
     for matched_pattern_idxs in matches {
