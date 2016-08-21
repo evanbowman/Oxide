@@ -17,38 +17,47 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
     let start_time = time::precise_time_ns();
     let num_entries = entries.len();
     let num_cores = num_cpus::get();
-    let mutex = Arc::new(Mutex::new(false));
-    let shared_entries = Arc::new(entries);
-    let shared_pattern = Arc::new(pattern);
-    let mut threads = Vec::new();
-    for idx in 0..num_cores {
-        let child_entries = shared_entries.clone();
-        let child_pattern = shared_pattern.clone();
-        let child_mutex = mutex.clone();
-        let block_size = num_entries / num_cores;
-        let mut range = (idx * block_size, (idx + 1) * block_size - 1);
-        if idx == num_cores {
-            // This corrects for round-off error in integer division
-            range.1 = num_entries - 1;
-        }
-        threads.push(thread::spawn(move || {
-            ranged_search(&child_pattern, &child_entries, range, &child_mutex);
-        }));
-    }
-    for thrd in threads {
-        let res = thrd.join();
-        match res {
-            Err(e) => {
-                println!("Error: thread panicked with error code {:?}", e);
+    let mut num_threads = 0;
+    if num_cores < num_entries {
+        let mutex = Arc::new(Mutex::new(false));
+        let shared_entries = Arc::new(entries);
+        let shared_pattern = Arc::new(pattern);
+        let mut threads = Vec::new();
+        for idx in 0..num_cores {
+            let child_entries = shared_entries.clone();
+            let child_pattern = shared_pattern.clone();
+            let child_mutex = mutex.clone();
+            let block_size = num_entries / num_cores;
+            let mut range = (idx * block_size, (idx + 1) * block_size - 1);
+            if idx == num_cores {
+                // This corrects for round-off error in integer division
+                range.1 = num_entries - 1;
             }
-            _ => {}
+            threads.push(thread::spawn(move || {
+                ranged_search(&child_pattern, &child_entries, range, &child_mutex);
+            }));
+            num_threads += 1;
         }
+        for thrd in threads {
+            let res = thrd.join();
+            match res {
+                Err(e) => {
+                    println!("Error: thread panicked with error code {:?}", e);
+                }
+                _ => {}
+            }
+        }
+    } else {
+        num_threads = 1;
+        let mutex = Mutex::new(false);
+        // TODO: Make the mutex an optional argument
+        ranged_search(&pattern, &entries, (0, entries.len()), &mutex);
     }
     let elapsed = time::precise_time_ns() - start_time;
-    println!("[Completed search of {0} files in {1} ns using {2} threads]",
+    println!("[Completed search of {0} files in {1} ns using {2} thread(s)]",
              num_entries,
              elapsed,
-             num_cores);
+             num_threads);
 }
 
 fn ranged_search(pattern: &String,
