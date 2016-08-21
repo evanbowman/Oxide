@@ -13,7 +13,7 @@ fn main() {
         match res {
             Ok(entries) => {
                 let pattern = args[1].clone();
-                search::run_search(pattern, entries);
+                search::run_search(pattern, entries, search::PrintMode::Standard);
             }
             _ => {
                 println!("Error: Could not get directory listing.");

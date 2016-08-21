@@ -13,7 +13,13 @@ use self::regex::bytes::Regex;
 use std::path::PathBuf;
 use std::str;
 
-pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
+#[derive(Copy, Clone)]
+pub enum PrintMode {
+    Standard,
+    CountOnly,
+}
+
+pub fn run_search(pattern: String, entries: Vec<DirEntry>, print_mode: PrintMode) {
     let start_time = time::precise_time_ns();
     let num_entries = entries.len();
     let num_cores = num_cpus::get();
@@ -31,10 +37,14 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
             let mut range = (idx * block_size, (idx + 1) * block_size - 1);
             if idx == num_cores {
                 // This corrects for round-off error in integer division
-                range.1 = num_entries - 1;
+                range.1 = num_entries;
             }
             threads.push(thread::spawn(move || {
-                ranged_search(&child_pattern, &child_entries, range, Some(&child_mutex));
+                search_rangeof_files(&child_pattern,
+                                     &child_entries,
+                                     range,
+                                     Some(&child_mutex),
+                                     print_mode);
             }));
             num_threads += 1;
         }
@@ -49,7 +59,7 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
         }
     } else {
         num_threads = 1;
-        ranged_search(&pattern, &entries, (0, entries.len()), None);
+        search_rangeof_files(&pattern, &entries, (0, entries.len()), None, print_mode);
     }
     let elapsed = time::precise_time_ns() - start_time;
     println!("[Completed search of {0} files in {1} ns using {2} thread(s)]",
@@ -59,10 +69,11 @@ pub fn run_search(pattern: String, entries: Vec<DirEntry>) {
 }
 
 #[allow(unused_variables)] // lock_grd needs to exist for thread synchronization
-fn ranged_search(pattern: &String,
-                 entries: &Vec<DirEntry>,
-                 range: (usize, usize),
-                 mutex: Option<&Mutex<bool>>) {
+fn search_rangeof_files(pattern: &String,
+                        entries: &Vec<DirEntry>,
+                        range: (usize, usize),
+                        mutex: Option<&Mutex<bool>>,
+                        print_mode: PrintMode) {
     let ret = Regex::new(pattern);
     match ret {
         Err(_) => println!("Failed to construct regular expression."),
@@ -77,9 +88,9 @@ fn ranged_search(pattern: &String,
                         match mutex {
                             Some(m) => {
                                 let lock_grd = m.lock().unwrap();
-                                print_results(bytes, matches, entry.path());
+                                print_results(bytes, matches, entry.path(), print_mode);
                             }
-                            None => print_results(bytes, matches, entry.path()),
+                            None => print_results(bytes, matches, entry.path(), print_mode),
                         }
                     }
                     Err(_) => {
@@ -101,18 +112,28 @@ fn search_mmap(bytes: &[u8], regex: &Regex) -> Vec<(usize, usize)> {
     return matches;
 }
 
-fn print_results(bytes: &[u8], matches: Vec<(usize, usize)>, path: PathBuf) {
+fn print_results(bytes: &[u8],
+                 matches: Vec<(usize, usize)>,
+                 path: PathBuf,
+                 print_mode: PrintMode) {
     if matches.len() == 0 {
         return;
     }
     let fname = path.file_name().unwrap().to_str().unwrap();
     println!("[{}]", Style::new().bold().paint(fname));
-    for matched_pattern_idxs in matches {
-        print!("\t");
-        print_leading_context(bytes, matched_pattern_idxs);
-        print_match(bytes, matched_pattern_idxs);
-        print_trailing_context(bytes, matched_pattern_idxs);
-        print!("{}", Style::default().paint("\n"));
+    match print_mode {
+        PrintMode::Standard => {
+            for matched_pattern_idxs in matches {
+                print!("\t");
+                print_leading_context(bytes, matched_pattern_idxs);
+                print_match(bytes, matched_pattern_idxs);
+                print_trailing_context(bytes, matched_pattern_idxs);
+                print!("{}", Style::default().paint("\n"));
+            }
+        }
+        PrintMode::CountOnly => {
+            print!("{}", matches.len());
+        }
     }
     print!("\n\n");
 }
