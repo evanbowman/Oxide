@@ -16,3 +16,4 @@ This project uses Cargo for building and resolving dependencies.
 ```
 Cargo build --release
 ```
+Then move it to the directory where your shell looks for commands. Maybe I'll put it on homebrew, apt-get etc.. when I'm done.
